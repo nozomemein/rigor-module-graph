@@ -368,6 +368,92 @@ namespace collapse は DOT の `subgraph cluster_...` で表現する。
 - `rigor-module-graph stats` サブコマンド（fan-in / fan-out / namespace 別の集計）
 - `--package` overlay（`packwerk.yml` 等の境界 file を読んで cluster をその境界に合わせる）
 
+### Phase 5: UML クラス図出力
+
+今回作っている graph は **UML 的なクラス図の材料** になる。ただし現計画のままだとまず出せるのは「依存グラフ寄りのクラス図」。
+
+すぐ生やせるもの（Phase 1〜4 で揃った材料）:
+
+- class / module の node
+- 継承 `A < B`
+- mixin `include / prepend / extend`
+- constant reference 依存
+- namespace cluster
+- cycle / fan-in / fan-out
+
+UML クラス図っぽくするなら、追加で欲しくなるのは:
+
+- class の attributes / fields
+- instance methods / class methods
+- method visibility: public / protected / private
+- ActiveRecord association: `has_many`, `belongs_to`
+- interface / module 的な表現
+- dependency / inheritance / realization の線種分け
+- Mermaid `classDiagram` 出力
+
+Mermaid なら例えばこういう方向:
+
+```mermaid
+classDiagram
+  class Billing__Invoice {
+    +total()
+  }
+
+  class ApplicationRecord
+  class Auditable <<module>>
+  class Money
+
+  Billing__Invoice --|> ApplicationRecord
+  Billing__Invoice ..|> Auditable : include
+  Billing__Invoice ..> Money : const_ref
+```
+
+原理的には:
+
+> 今回の edge graph に「node metadata」を足すと UML クラス図になる
+
+という関係。
+
+現計画の JSONL は edge 中心なので、UML をちゃんとやるなら次に `nodes.jsonl` も欲しい:
+
+```json
+{"name":"Billing::Invoice","kind":"class","path":"app/models/billing/invoice.rb","line":1}
+{"owner":"Billing::Invoice","kind":"instance_method","name":"total","visibility":"public","line":5}
+{"name":"Auditable","kind":"module","path":"app/models/concerns/auditable.rb","line":1}
+```
+
+#### 段取り
+
+Rubrowser / YARD / RailRoady に近づく領域なので、最初から UML を主目的にするより、architecture dependency graph を固めて、その派生出力として `mermaid classDiagram` を追加する流れがよさそう。
+
+1. **Phase 5a: node metadata 抽出**
+   - `Prism::DefNode` / `Prism::ClassNode` / `Prism::ModuleNode` から attributes / methods / visibility を拾う
+   - `nodes.jsonl` を edges.jsonl の隣に書き出す（plugin の info diagnostic は `rule: "node"` で出し、collector が分離）
+   - method 列挙は `def`, `def self.`, `attr_*`, `define_method` 程度で MVP
+2. **Phase 5b: Rails association（`has_many`/`belongs_to`/`has_one`/`has_and_belongs_to_many`）**
+   - `Prism::CallNode` を `rigor-activerecord` plugin 的に扱う（既存の `MIXIN_METHODS` の延長）
+   - 専用 edge kind: `association` + `cardinality: one|many`
+3. **Phase 5c: `Mermaid::ClassDiagram` レンダラ**
+   - 既存の `Mermaid` モジュールは `flowchart` 専用なので、`mermaid_class` サブコマンド + 別レンダラを切る
+   - 線種マッピング: `inherits → --|>`, `include/prepend/extend → ..|>`, `const_ref → ..>`, `association(many) → "1" -- "*"`
+4. **Phase 5d: visibility / scope の filter**
+   - `--public-only`, `--no-private`
+   - `--no-methods` で association + 継承のみのクラス図
+
+#### 完了条件
+
+- `nodes.jsonl` が edges.jsonl と整合的に出る（一つの edge の `from` / `to` がすべて nodes.jsonl に存在）
+- `rigor-module-graph mermaid-class edges.jsonl nodes.jsonl > graph.mmd` で `classDiagram` が出る
+- billing example で 1 class / 3 method の UML クラス図がブラウザに表示される
+- 既存の `flowchart` 出力は変更なし
+
+#### 主要リスク
+
+- method 列挙は metaprogramming（`define_method`, DSL macro）を syntax だけだと取りこぼす
+- visibility は `private` / `public` / `protected` キーワードの後続スコープを追う必要があり、Prism walker での state 管理が要る
+- association は `class_name: "Foo"` などの option 解釈で `to` 推定が必要（Phase 3 の Rigor type info で resolve できる場合がある）
+- Mermaid `classDiagram` は `::` を識別子に許さないので、`Billing__Invoice` のような置換が必要（render 側で吸収、エッジの `from`/`to` には影響させない）
+
 ## テスト方針
 
 テストは Minitest を基本にする。edge JSONL / DOT / Mermaid のような出力比較は `minitest-snapshot` を使い、手書き expected 文字列ではなく snapshot ベースで管理する。
