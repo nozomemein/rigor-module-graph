@@ -1,0 +1,7 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "rigor/module_graph/version"
+require "rigor/module_graph/cli"
+
+exit(Rigor::ModuleGraph::CLI.run(ARGV.dup))
