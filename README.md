@@ -138,7 +138,38 @@ bodies. Set `rails_zeitwerk: false` to keep every edge at
 
 ## Usage
 
-Three reader subcommands and one collector:
+### One-shot: `view`
+
+The default subcommand analyses the current directory, writes a
+self-contained Mermaid HTML report under `.rigor/module_graph/`,
+and opens it in your browser. No flags needed for a Rails-shaped
+project.
+
+```sh
+cd path/to/your/project
+bundle exec rigor-module-graph         # same as: rigor-module-graph view
+```
+
+Useful flags:
+
+```sh
+# Don't open the browser (just write the HTML)
+rigor-module-graph view --no-open
+
+# Pick your own collapse list (default: auto-detect top-level
+# namespaces that have ≥ 2 members)
+rigor-module-graph view --collapse Billing,Auth
+rigor-module-graph view --no-collapse
+
+# Same kind / confidence filters as the lower-level commands
+rigor-module-graph view --kind inherits,include
+rigor-module-graph view --confidence syntax,zeitwerk
+```
+
+### Lower-level pipeline
+
+The pipeline `view` runs is also exposed as discrete subcommands
+when you want JSONL on disk or a pipeable text output:
 
 ```sh
 # Run `rigor check` and write edges JSONL (default: .rigor/module_graph/edges.jsonl)

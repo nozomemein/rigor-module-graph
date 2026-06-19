@@ -19,12 +19,13 @@
       .legend .prepend { background: #9333ea; }
       .legend .extend { background: #0f766e; }
       .legend .const_ref { background: #94a3b8; color: #0f172a; }
+      .legend .unresolved { background: #fef3c7; color: #0f172a; }
     </style>
   </head>
   <body>
     <h1>rigor-module-graph: billing example</h1>
-    <p class="meta">Generated from <code>examples/billing/app</code> via <code>rigor-module-graph collect &amp;&amp; mermaid</code>.</p>
-    <div class="card">
+          <p class="meta">Generated from examples/billing/app</p>
+        <div class="card">
       <pre class="mermaid">
 flowchart LR
     subgraph sg_Billing ["Billing"]
@@ -77,6 +78,7 @@ flowchart LR
       <span class="prepend">prepend</span>
       <span class="extend">extend</span>
       <span class="const_ref">const_ref</span>
+      <span class="unresolved">unresolved</span>
     </div>
   </body>
 </html>

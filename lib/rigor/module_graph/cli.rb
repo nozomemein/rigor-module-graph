@@ -4,12 +4,14 @@ require "fileutils"
 require "json"
 require "open3"
 require "optparse"
+require "set"
 require "shellwords"
 
 require_relative "edge"
 require_relative "dot"
 require_relative "mermaid"
 require_relative "cycle_detector"
+require_relative "html_view"
 
 module Rigor
   module ModuleGraph
@@ -37,6 +39,10 @@ module Rigor
         argv = argv.dup
         command = argv.shift
         case command
+        when nil
+          View.new(stdout: stdout, stderr: stderr).run([])
+        when "view"
+          View.new(stdout: stdout, stderr: stderr).run(argv)
         when "collect"
           Collect.new(stdout: stdout, stderr: stderr).run(argv)
         when "dot"
@@ -45,7 +51,7 @@ module Rigor
           Render.new(:mermaid, stdout: stdout, stderr: stderr, stdin: stdin).run(argv)
         when "cycles"
           Cycles.new(stdout: stdout, stderr: stderr, stdin: stdin).run(argv)
-        when nil, "-h", "--help"
+        when "-h", "--help", "help"
           stdout.puts USAGE
           0
         when "version", "-v", "--version"
@@ -59,9 +65,13 @@ module Rigor
       end
 
       USAGE = <<~USAGE
-        Usage: rigor-module-graph <command> [options] [paths]
+        Usage: rigor-module-graph [command] [options] [paths]
+
+        Default (no command): same as `view` — analyse the current
+        directory, write an HTML report, and open it in a browser.
 
         Commands:
+          view    [PATHS...]   Analyse, write HTML, open in a browser
           collect [PATHS...]   Run `rigor check` and write edges JSONL
           dot     [FILE]       Render edges JSONL as Graphviz DOT
           mermaid [FILE]       Render edges JSONL as Mermaid
@@ -102,70 +112,23 @@ module Rigor
         end
       end
 
-      # `collect` shells out to `rigor check --format json` and
-      # writes a JSONL edge file by filtering the diagnostics for
-      # our `source_family` + `rule`.
-      class Collect
-        DEFAULT_PATHS = [].freeze
-
-        def initialize(stdout:, stderr:)
-          @stdout = stdout
-          @stderr = stderr
-          @options = {
-            output: DEFAULT_EDGES_PATH,
-            cache: false,
-            rigor_cmd: ENV.fetch("RIGOR_CMD", "rigor")
-          }
+      # Encapsulates the actual `rigor check --format json` shell-out
+      # and the diagnostic → Edge transformation. Reused by both
+      # `Collect` (write JSONL) and `View` (render HTML).
+      class RigorRunner
+        def initialize(rigor_cmd: ENV.fetch("RIGOR_CMD", "rigor"), cache: false)
+          @rigor_cmd = rigor_cmd
+          @cache = cache
         end
 
-        def run(argv)
-          parser = build_parser
-          paths = parser.parse(argv)
-
-          ensure_output_dir
+        def edges_for(paths)
           diagnostics = run_rigor(paths)
-          edges = diagnostics_to_edges(diagnostics)
-          write_edges(edges)
-          @stderr.puts "rigor-module-graph: wrote #{edges.size} edge(s) to #{@options[:output]}"
-          0
-        rescue OptionParser::ParseError => e
-          @stderr.puts "rigor-module-graph collect: #{e.message}"
-          2
-        rescue CollectError => e
-          @stderr.puts "rigor-module-graph collect: #{e.message}"
-          1
-        end
-
-        def build_parser
-          OptionParser.new do |opts|
-            opts.banner = "Usage: rigor-module-graph collect [options] [PATHS...]"
-            opts.on("-o", "--output PATH",
-                    "Write edges to PATH (default: #{DEFAULT_EDGES_PATH})") do |path|
-              @options[:output] = path
-            end
-            opts.on("--[no-]cache",
-                    "Pass `--cache` / `--no-cache` to rigor (default: --no-cache)") do |cache|
-              @options[:cache] = cache
-            end
-            opts.on("--rigor-cmd CMD",
-                    "Override the rigor binary (default: rigor or $RIGOR_CMD)") do |cmd|
-              @options[:rigor_cmd] = cmd
-            end
-            opts.on("-h", "--help") do
-              @stdout.puts opts
-              exit 0
-            end
-          end
-        end
-
-        def ensure_output_dir
-          dir = File.dirname(@options[:output])
-          FileUtils.mkdir_p(dir) unless dir.empty?
+          diagnostics_to_edges(diagnostics)
         end
 
         def run_rigor(paths)
-          cmd = [@options[:rigor_cmd], "check", "--format", "json"]
-          cmd << (@options[:cache] ? "--cache" : "--no-cache")
+          cmd = [@rigor_cmd, "check", "--format", "json"]
+          cmd << (@cache ? "--cache" : "--no-cache")
           cmd << "--no-stats"
           cmd.concat(paths) unless paths.empty?
 
@@ -208,14 +171,211 @@ module Rigor
             nil
           end
         end
+      end
+
+      class CollectError < StandardError; end
+
+      # `collect` shells out to `rigor check --format json` and
+      # writes a JSONL edge file by filtering the diagnostics for
+      # our `source_family` + `rule`.
+      class Collect
+        DEFAULT_PATHS = [].freeze
+
+        def initialize(stdout:, stderr:)
+          @stdout = stdout
+          @stderr = stderr
+          @options = {
+            output: DEFAULT_EDGES_PATH,
+            cache: false,
+            rigor_cmd: ENV.fetch("RIGOR_CMD", "rigor")
+          }
+        end
+
+        def run(argv)
+          parser = build_parser
+          paths = parser.parse(argv)
+
+          ensure_output_dir
+          runner = RigorRunner.new(rigor_cmd: @options[:rigor_cmd], cache: @options[:cache])
+          edges = runner.edges_for(paths)
+          write_edges(edges)
+          @stderr.puts "rigor-module-graph: wrote #{edges.size} edge(s) to #{@options[:output]}"
+          0
+        rescue OptionParser::ParseError => e
+          @stderr.puts "rigor-module-graph collect: #{e.message}"
+          2
+        rescue CollectError => e
+          @stderr.puts "rigor-module-graph collect: #{e.message}"
+          1
+        end
+
+        def build_parser
+          OptionParser.new do |opts|
+            opts.banner = "Usage: rigor-module-graph collect [options] [PATHS...]"
+            opts.on("-o", "--output PATH",
+                    "Write edges to PATH (default: #{DEFAULT_EDGES_PATH})") do |path|
+              @options[:output] = path
+            end
+            opts.on("--[no-]cache",
+                    "Pass `--cache` / `--no-cache` to rigor (default: --no-cache)") do |cache|
+              @options[:cache] = cache
+            end
+            opts.on("--rigor-cmd CMD",
+                    "Override the rigor binary (default: rigor or $RIGOR_CMD)") do |cmd|
+              @options[:rigor_cmd] = cmd
+            end
+            opts.on("-h", "--help") do
+              @stdout.puts opts
+              exit 0
+            end
+          end
+        end
+
+        def ensure_output_dir
+          dir = File.dirname(@options[:output])
+          FileUtils.mkdir_p(dir) unless dir.empty?
+        end
 
         def write_edges(edges)
           File.open(@options[:output], "w") do |io|
             EdgeIO.write(edges, io)
           end
         end
+      end
 
-        class CollectError < StandardError; end
+      # `view` is the one-shot entry point: from the project root
+      # type `rigor-module-graph` and it analyses the current
+      # directory, writes a self-contained Mermaid HTML report,
+      # and opens it in a browser.
+      #
+      # Defaults are tuned to need zero flags on a Rails-shaped
+      # project. The lower-level subcommands (collect / dot /
+      # mermaid) stay available for piped use.
+      class View
+        include EdgeFilters
+
+        DEFAULT_OUTPUT = ".rigor/module_graph/view.html"
+        AUTO_COLLAPSE_THRESHOLD = 2
+
+        def initialize(stdout:, stderr:)
+          @stdout = stdout
+          @stderr = stderr
+          @options = {
+            output: DEFAULT_OUTPUT,
+            cache: false,
+            rigor_cmd: ENV.fetch("RIGOR_CMD", "rigor"),
+            open: true,
+            collapse: nil,
+            kinds: nil,
+            confidences: nil
+          }
+        end
+
+        def run(argv)
+          parser = build_parser
+          paths = parser.parse(argv)
+
+          ensure_output_dir
+          runner = RigorRunner.new(rigor_cmd: @options[:rigor_cmd], cache: @options[:cache])
+          edges = runner.edges_for(paths)
+          edges = apply_filters(edges, kinds: @options[:kinds], confidences: @options[:confidences])
+          collapse = effective_collapse(edges)
+
+          mermaid = Mermaid.render(edges, collapse: collapse)
+          html = HtmlView.render(
+            title: "rigor-module-graph: #{File.basename(Dir.pwd)}",
+            subtitle: render_subtitle(edges, collapse),
+            mermaid_source: mermaid
+          )
+          File.write(@options[:output], html)
+          @stderr.puts "rigor-module-graph: wrote #{edges.size} edge(s) to #{@options[:output]}"
+          open_in_browser(@options[:output]) if @options[:open]
+          0
+        rescue OptionParser::ParseError => e
+          @stderr.puts "rigor-module-graph view: #{e.message}"
+          2
+        rescue CollectError => e
+          @stderr.puts "rigor-module-graph view: #{e.message}"
+          1
+        end
+
+        def build_parser
+          OptionParser.new do |opts|
+            opts.banner = "Usage: rigor-module-graph view [options] [PATHS...]"
+            opts.on("-o", "--output PATH",
+                    "Write HTML to PATH (default: #{DEFAULT_OUTPUT})") do |path|
+              @options[:output] = path
+            end
+            opts.on("--[no-]open",
+                    "Open the HTML in a browser (default: true)") do |flag|
+              @options[:open] = flag
+            end
+            opts.on("--collapse PREFIXES", Array,
+                    "Manual collapse list (disables auto-detection)") do |prefixes|
+              @options[:collapse] = prefixes
+            end
+            opts.on("--no-collapse",
+                    "Disable namespace collapse entirely") do
+              @options[:collapse] = []
+            end
+            opts.on("--[no-]cache",
+                    "Pass --cache / --no-cache to rigor (default: --no-cache)") do |cache|
+              @options[:cache] = cache
+            end
+            opts.on("--rigor-cmd CMD",
+                    "Override the rigor binary (default: rigor or $RIGOR_CMD)") do |cmd|
+              @options[:rigor_cmd] = cmd
+            end
+            add_filter_options(opts, @options)
+            opts.on("-h", "--help") do
+              @stdout.puts opts
+              exit 0
+            end
+          end
+        end
+
+        # Choose collapse prefixes. Explicit `--collapse` wins;
+        # otherwise we auto-pick top-level namespaces that have at
+        # least AUTO_COLLAPSE_THRESHOLD distinct nodes under them,
+        # which is what most graphs benefit from.
+        def effective_collapse(edges)
+          return @options[:collapse] unless @options[:collapse].nil?
+
+          counts = Hash.new { |h, k| h[k] = Set.new }
+          edges.each do |edge|
+            [edge.from, edge.to].each do |name|
+              head, tail = name.split("::", 2)
+              # Only collapse on the top-level segment so a deep
+              # tree like `Billing::Invoice::Line` still feeds into
+              # the `Billing` cluster — picking inner prefixes
+              # would compete with each other and produce nested
+              # clusters that hurt readability.
+              next if tail.nil? || tail.empty?
+
+              counts[head] << name
+            end
+          end
+          counts.select { |_, members| members.size >= AUTO_COLLAPSE_THRESHOLD }.keys.sort
+        end
+
+        def render_subtitle(edges, collapse)
+          parts = ["#{edges.size} edge(s) from #{Dir.pwd}"]
+          parts << "collapsed: #{collapse.join(", ")}" unless collapse.empty?
+          parts.join(" · ")
+        end
+
+        def ensure_output_dir
+          dir = File.dirname(@options[:output])
+          FileUtils.mkdir_p(dir) unless dir.empty?
+        end
+
+        def open_in_browser(path)
+          opener = ENV["BROWSER"] ||
+                   (RUBY_PLATFORM.include?("darwin") ? "open" : "xdg-open")
+          system(opener, path)
+        rescue StandardError => e
+          @stderr.puts "rigor-module-graph view: could not open #{path}: #{e.message}"
+        end
       end
 
       # Shared base for `dot` / `mermaid` — both load an edges JSONL
