@@ -358,20 +358,11 @@ before pushing to RubyGems.
 - rigortype `~> 0.2.1`
 - rbs `~> 4.0`
 
-## Phase 5 limitations
+## Further reading
 
-- The visibility tracker honours bare `private` / `public` /
-  `protected` keywords. The explicit symbol form (`private :foo,
-  :bar`), `private_class_method`, and `class << self` blocks
-  fall through and read as `public`.
-- The Rails inflector is the tiny one this gem ships. For
-  irregular plurals not in the bundled table (`mice`, `people`,
-  `feet`, `children`, …), or for project-specific ones, prefer
-  `class_name: "Foo"` on the association so the resolved name is
-  exact rather than guessed.
-- Mermaid 10.x's `classDiagram` parser silently rejects the
-  document when the UML `<<module>>` annotation co-exists with
-  the `class Foo["Label"]` form needed for namespaced constants,
-  so module nodes carry a `«module»` label suffix instead of the
-  UML annotation glyph. Drop-in fix once Mermaid stabilises that
-  combination.
+- [`docs/plan.md`](docs/plan.md) — the per-phase implementation
+  plan with the decisions and trade-offs taken at each step.
+- [`docs/limitation.md`](docs/limitation.md) — known limitations
+  shipped with the current release (visibility tracker gaps, the
+  bundled inflector, Mermaid 10.x quirks).
+- [`CHANGELOG.md`](CHANGELOG.md) — per-version changes.

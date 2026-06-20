@@ -11,7 +11,11 @@ RDoc::Task.new do |rdoc|
   rdoc.main = "README.md"
   rdoc.title = "rigor-module-graph"
   rdoc.rdoc_dir = "doc"
-  rdoc.rdoc_files.include("README.md", "lib/**/*.rb")
+  # `docs/*.md` carries the long-form design notes (plan, known
+  # limitations). Including them here means `rake rdoc` produces
+  # one navigable site that covers source, README, and design
+  # docs together.
+  rdoc.rdoc_files.include("README.md", "CHANGELOG.md", "docs/*.md", "lib/**/*.rb")
   rdoc.options << "--markup" << "rdoc"
 end
 

@@ -4,7 +4,7 @@ module Rigor
   module ModuleGraph
     # Renders an array of Edges as a Graphviz DOT document.
     #
-    # Style decisions (per plan.md "グラフモデル"):
+    # Style decisions (per docs/plan.md "グラフモデル"):
     # - rankdir=LR for readability of inheritance towers
     # - inherits: thick solid
     # - include: solid
