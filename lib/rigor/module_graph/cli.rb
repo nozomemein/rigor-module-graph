@@ -16,6 +16,7 @@ require_relative "reachability"
 require_relative "stats"
 require_relative "packwerk_overlay"
 require_relative "html_view"
+require_relative "status_reporter"
 require_relative "uml/class_diagram"
 
 module Rigor
@@ -255,6 +256,7 @@ module Rigor
             output: DEFAULT_EDGES_PATH,
             nodes_output: DEFAULT_NODES_PATH,
             cache: false,
+            quiet: false,
             rigor_cmd: ENV.fetch("RIGOR_CMD", "rigor")
           }
         end
@@ -263,11 +265,15 @@ module Rigor
           parser = build_parser
           paths = parser.parse(argv)
 
+          status = Rigor::ModuleGraph::StatusReporter.new(stderr: @stderr, quiet: @options[:quiet])
+
           ensure_output_dirs
           runner = RigorRunner.new(rigor_cmd: @options[:rigor_cmd], cache: @options[:cache])
-          edges, nodes = runner.analyse(paths)
-          write_edges(edges)
-          write_nodes(nodes)
+          edges, nodes = status.step(rigor_step_label(paths)) { runner.analyse(paths) }
+          status.info "#{edges.size} edge(s), #{nodes.size} node(s)"
+          status.step("Writing #{@options[:output]}") { write_edges(edges) }
+          status.step("Writing #{@options[:nodes_output]}") { write_nodes(nodes) }
+
           @stderr.puts "rigor-module-graph: wrote #{edges.size} edge(s) to #{@options[:output]}, " \
                        "#{nodes.size} node(s) to #{@options[:nodes_output]}"
           0
@@ -277,6 +283,13 @@ module Rigor
         rescue CollectError => e
           @stderr.puts "rigor-module-graph collect: #{e.message}"
           1
+        end
+
+        # Path-aware label so the user can see which paths Rigor
+        # is being pointed at when the step is slow.
+        def rigor_step_label(paths)
+          target = paths.empty? ? "configured paths" : paths.join(", ")
+          "Running rigor check on #{target}"
         end
 
         def build_parser
@@ -297,6 +310,9 @@ module Rigor
             opts.on("--rigor-cmd CMD",
                     "Override the rigor binary (default: rigor or $RIGOR_CMD)") do |cmd|
               @options[:rigor_cmd] = cmd
+            end
+            opts.on("-q", "--quiet", "Suppress step-level progress on stderr") do
+              @options[:quiet] = true
             end
             opts.on("-h", "--help") do
               @stdout.puts opts
@@ -365,6 +381,7 @@ module Rigor
             format: "html",
             output: nil,
             cache: false,
+            quiet: false,
             rigor_cmd: ENV.fetch("RIGOR_CMD", "rigor"),
             open: true,
             collapse: nil,
@@ -385,22 +402,34 @@ module Rigor
           parser = build_parser
           paths = parser.parse(argv)
 
+          status = Rigor::ModuleGraph::StatusReporter.new(stderr: @stderr, quiet: @options[:quiet])
+
           runner = RigorRunner.new(rigor_cmd: @options[:rigor_cmd], cache: @options[:cache])
-          edges, nodes = runner.analyse(paths)
-          edges = apply_filters(
-            edges,
-            kinds: @options[:kinds],
-            confidences: @options[:confidences],
-            from: @options[:from],
-            depth: @options[:depth],
-            direction: @options[:direction],
-            edge_scope: @options[:edge_scope]
-          )
+          edges, nodes = status.step(rigor_step_label(paths)) { runner.analyse(paths) }
+          status.info "#{edges.size} edge(s), #{nodes.size} node(s)"
+
+          if any_filter_active?
+            edges = status.step("Applying filters") do
+              apply_filters(
+                edges,
+                kinds: @options[:kinds],
+                confidences: @options[:confidences],
+                from: @options[:from],
+                depth: @options[:depth],
+                direction: @options[:direction],
+                edge_scope: @options[:edge_scope]
+              )
+            end
+            status.info "#{edges.size} edge(s) after filters"
+          end
+
           groups = package_groups(edges)
           collapse = groups ? [] : effective_collapse(edges)
 
-          payload, binary = render_payload(edges, nodes, collapse, groups)
-          deliver(payload, binary: binary, edges: edges)
+          payload, binary = status.step("Rendering #{@options[:format]}") do
+            render_payload(edges, nodes, collapse, groups)
+          end
+          deliver(payload, binary: binary, edges: edges, status: status)
           0
         rescue OptionParser::ParseError => e
           @stderr.puts "rigor-module-graph view: #{e.message}"
@@ -408,6 +437,20 @@ module Rigor
         rescue CollectError, RenderError => e
           @stderr.puts "rigor-module-graph view: #{e.message}"
           1
+        end
+
+        def rigor_step_label(paths)
+          target = paths.empty? ? "configured paths" : paths.join(", ")
+          "Running rigor check on #{target}"
+        end
+
+        def any_filter_active?
+          @options[:kinds] || @options[:confidences] ||
+            @options[:from] || @options[:depth]
+        end
+
+        def silent_status
+          Rigor::ModuleGraph::StatusReporter.new(stderr: @stderr, quiet: true)
         end
 
         class RenderError < StandardError; end
@@ -475,7 +518,10 @@ module Rigor
 
         # Writes the payload to the configured destination and
         # opens the browser when the html-default flow applies.
-        def deliver(payload, binary:, edges:)
+        # `status:` defaults to a silent reporter so the existing
+        # test surface (which exercises `deliver` directly) keeps
+        # working without threading a reporter through.
+        def deliver(payload, binary:, edges:, status: silent_status)
           destination = effective_output_path
           if destination.nil?
             if binary
@@ -485,12 +531,16 @@ module Rigor
             return
           end
 
-          dir = File.dirname(destination)
-          FileUtils.mkdir_p(dir) unless dir.empty? || dir == "."
-          mode = binary ? "wb" : "w"
-          File.open(destination, mode) { |io| io.write(payload) }
+          status.step("Writing #{destination}") do
+            dir = File.dirname(destination)
+            FileUtils.mkdir_p(dir) unless dir.empty? || dir == "."
+            mode = binary ? "wb" : "w"
+            File.open(destination, mode) { |io| io.write(payload) }
+          end
           @stderr.puts "rigor-module-graph: wrote #{edges.size} edge(s) to #{destination}"
-          open_in_browser(destination) if html? && @options[:open]
+          return unless html? && @options[:open]
+
+          status.step("Opening #{destination} in browser") { open_in_browser(destination) }
         end
 
         # Resolve the output path. `-o PATH` always wins. With no
@@ -562,6 +612,9 @@ module Rigor
             opts.on("--rigor-cmd CMD",
                     "Override the rigor binary (default: rigor or $RIGOR_CMD)") do |cmd|
               @options[:rigor_cmd] = cmd
+            end
+            opts.on("-q", "--quiet", "Suppress step-level progress on stderr") do
+              @options[:quiet] = true
             end
             add_filter_options(opts, @options)
             opts.on("-h", "--help") do

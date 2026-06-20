@@ -17,6 +17,18 @@ Categories:
 
 ## [Unreleased]
 
+### Added
+
+- `view` and `collect` now emit step-level progress on stderr:
+  `==> Running rigor check ...`, post-step counts (`18 edge(s),
+  16 node(s)`), and inline elapsed time (`done (428ms)`).
+  TTY-aware — the start / done halves render inline on a
+  terminal, on separate lines for redirected output, so logs
+  stay grep-friendly. `-q` / `--quiet` suppresses the progress
+  output for scripted use; the final `wrote N edge(s) to ...`
+  summary line stays. Driven by a new `StatusReporter` class
+  pinned by `test/rigor/module_graph/status_reporter_test.rb`.
+
 ### Changed
 
 - README restructured along the install → getting started →
