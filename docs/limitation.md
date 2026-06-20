@@ -1,10 +1,9 @@
 # Known limitations
 
-A list of the rough edges that ship with each release. Most map
-to a deliberate scope cut documented in
-[`docs/plan.md`](plan.md); the rest are upstream behaviour we
-work around. Per-version regressions and resolutions land in
-[`CHANGELOG.md`](../CHANGELOG.md).
+Current rough edges, indexed by the phase that introduced the
+feature. Per-version resolutions land in
+[`CHANGELOG.md`](../CHANGELOG.md); the design intent behind each
+trade-off lives in [`docs/plan.md`](plan.md).
 
 ## Phase 5 — UML class diagram
 
@@ -12,51 +11,50 @@ work around. Per-version regressions and resolutions land in
 
 `VisibilityMap` flips its running visibility on a bare `private`
 / `protected` / `public` statement inside a class or module body.
-The remaining Ruby forms fall through and read as `public`:
+Three other Ruby forms fall through and read as `public`:
 
-- the explicit symbol form: `private :foo, :bar` doesn't move
-  the cursor and doesn't retroactively mark `:foo` / `:bar`.
+- `private :foo, :bar` — the explicit symbol form does not move
+  the cursor and does not retroactively mark `:foo` / `:bar`.
 - `private_class_method` is unrecognised.
-- `class << self` blocks aren't traced; methods inside them
-  appear as public class methods on the surrounding constant.
+- `class << self` blocks are not traced; methods inside them
+  surface as public class methods on the surrounding constant.
 
-For day-to-day Ruby (Rails models, plain modules), the bare
-keyword covers ~90% of the cases. Anything more elaborate prints
-as public.
+The bare keyword covers the common Rails-model and plain-module
+shapes. Anything more elaborate reads as `public`.
 
 ### The bundled inflector is intentionally small
 
 `Rigor::ModuleGraph::Inflector` ships the basic Rails-style
-rules (`-ies → -y`, `-s → ""`, a tiny irregular-plurals table
-covering `people`, `men`, `women`, `children`, `feet`, `teeth`,
-`geese`, `mice`, `lice`). It does **not** plug into
-ActiveSupport's `Inflector`, so:
+rules (`-ies → -y`, `-s → ""`) plus a small irregular-plurals
+table (`people`, `men`, `women`, `children`, `feet`, `teeth`,
+`geese`, `mice`, `lice`). Anything outside the table is treated
+as regular and acronyms are not recognised:
 
-- Irregular plurals outside the bundled table get singularised
-  as if regular: `data → datum` fails, `analyses → analyse`
-  fails, etc.
-- Project-specific acronyms (`API`, `URL`, …) camelise as
-  `Api` / `Url`.
+- `data → datum` and `analyses → analyse` come out wrong.
+- `API` / `URL` camelise as `Api` / `Url`.
 
-When the inferred name is wrong, prefer the explicit override:
+When the inferred name is wrong, override with `class_name:` —
+it always wins over the inflector:
 
 ```ruby
 has_many :data_points, class_name: "Telemetry::DataPoint"
 ```
 
-`class_name:` always wins over the inflector, so the resolved
-name is exact.
+We deliberately do not pull in `ActiveSupport::Inflector`: the
+gem stays a standalone Rigor plugin, and the inflections users
+actually need on the wrong-by-default path are project-specific
+anyway.
 
-### Mermaid 10.x classDiagram + `<<module>>` annotation
+### Mermaid 10.x `classDiagram` and the `<<module>>` annotation
 
-We render every Ruby module as a `class` node with a `«module»`
-suffix on the label, not via the canonical UML `<<module>>`
-annotation. Background: Mermaid 10.x's `classDiagram` parser
-silently rejects the document when the annotation co-exists with
-the `class Foo["Label"]` form needed for namespaced constants
-(`Billing::Invoice` → `Billing__Invoice` with a label). We need
-the label form, so the annotation gets dropped.
+Module nodes carry a `«module»` suffix on the label rather than
+the canonical UML `<<module>>` annotation. Mermaid 10.x's
+`classDiagram` parser silently rejects the document when the
+annotation co-exists with the `class Foo["Label"]` form we need
+for namespaced constants (`Billing::Invoice` →
+`Billing__Invoice` with a label restoring the `::`). Keeping the
+label, which carries the actual name, was the higher-value side
+of that trade-off.
 
-This is a drop-in fix once Mermaid stabilises that combination
-(probably v11 — the rewritten parser handles annotations
-differently).
+Mermaid 11 rewrites the `classDiagram` parser; the workaround
+becomes unnecessary once the gem's CI matrix moves to it.

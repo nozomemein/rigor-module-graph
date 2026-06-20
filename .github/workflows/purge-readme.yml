@@ -1,0 +1,57 @@
+name: Purge README image cache
+
+# GitHub renders README.md image references through the
+# `camo.githubusercontent.com` proxy, which caches each image for
+# roughly 24 hours independent of any commit. A push to `main`
+# updates the README text immediately, but cached image bodies
+# (e.g. `examples/billing/preview.png`) keep serving the stale
+# version until the camo cache expires. This workflow scrapes
+# the rendered repo page for camo URLs and sends the
+# documented HTTP `PURGE` to each so they refresh in line with
+# the commit.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# README is a single global artefact — queue rather than race.
+concurrency:
+  group: "readme-purge"
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Purge camo URLs from rendered README
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          html=$(curl -fsSL -H "Accept: text/html" "https://github.com/${REPO}")
+          urls=$(printf '%s' "$html" \
+            | grep -oE 'https://camo\.githubusercontent\.com/[a-f0-9]+/[A-Za-z0-9_-]+' \
+            | sort -u)
+
+          if [ -z "$urls" ]; then
+            echo "No camo URLs in the rendered README; nothing to purge."
+            exit 0
+          fi
+
+          count=0
+          while IFS= read -r url; do
+            [ -z "$url" ] && continue
+            echo "PURGE ${url}"
+            # `-f` would fail the job on a non-2xx; we tolerate it
+            # because a single 404/5xx shouldn't gate the rest.
+            curl -sS -X PURGE "$url" -o /dev/null -w "  → HTTP %{http_code}\n" || true
+            count=$((count + 1))
+          done <<EOF
+          $urls
+          EOF
+
+          echo "Purged ${count} camo URL(s)."
