@@ -21,3 +21,4 @@ examples/**/class.mmd
 /.driver-view-preview.png
 /.*-view-preview.png
 /.uml-preview.png
+/.preview/

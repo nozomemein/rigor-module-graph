@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<%# CSP: only self + inline (we vetted the inline JS).  No
+    network fetches at view time — the vendored cytoscape and
+    our viewer.js are both inline below. -%>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:">
+<title><%= ERB::Util.html_escape(title) %></title>
+<style><%= css %></style>
+</head>
+<body>
+<header>
+  <h1><%= ERB::Util.html_escape(title) %></h1>
+  <% if subtitle %><p class="subtitle"><%= ERB::Util.html_escape(subtitle) %></p><% end %>
+  <div id="controls">
+    <fieldset id="filter-kind"><legend>kind</legend></fieldset>
+    <fieldset id="filter-confidence"><legend>confidence</legend></fieldset>
+    <input id="search" type="search" placeholder="search nodes...">
+    <button id="fit" type="button">fit</button>
+    <span id="counts"></span>
+  </div>
+</header>
+<main>
+  <div id="cy"></div>
+</main>
+<script type="application/json" id="rmg-data"><%= data_json %></script>
+<script><%= cytoscape %></script>
+<script><%= viewer %></script>
+</body>
+</html>
