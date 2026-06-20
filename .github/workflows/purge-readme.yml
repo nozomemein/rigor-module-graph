@@ -33,8 +33,15 @@ jobs:
           set -euo pipefail
 
           html=$(curl -fsSL -H "Accept: text/html" "https://github.com/${REPO}")
+
+          # `grep -oE` exits 1 when there are no matches; under
+          # `set -o pipefail` that propagates out and fails the
+          # job even though "no images in the README" is the
+          # legitimate steady state on a freshly published repo.
+          # `|| true` keeps the pipeline at exit 0 and lets the
+          # empty-list branch below handle the no-op case.
           urls=$(printf '%s' "$html" \
-            | grep -oE 'https://camo\.githubusercontent\.com/[a-f0-9]+/[A-Za-z0-9_-]+' \
+            | { grep -oE 'https://camo\.githubusercontent\.com/[a-f0-9]+/[A-Za-z0-9_-]+' || true; } \
             | sort -u)
 
           if [ -z "$urls" ]; then
