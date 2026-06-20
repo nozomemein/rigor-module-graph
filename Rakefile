@@ -32,4 +32,10 @@ namespace :rdoc do
   end
 end
 
+desc "Run tests with C2 (branch) coverage. Report writes to ./coverage."
+task :coverage do
+  ENV["COVERAGE"] = "1"
+  Rake::Task[:test].invoke
+end
+
 task default: :test

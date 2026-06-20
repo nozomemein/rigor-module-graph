@@ -36,4 +36,33 @@ class InflectorTest < Minitest::Test
     assert_equal "Person", Inflector.class_name_for("people")
     assert_equal "Company", Inflector.class_name_for("companies")
   end
+
+  def test_singularize_handles_empty_word
+    assert_equal "", Inflector.singularize("")
+  end
+
+  def test_singularize_returns_dup_for_unmatched_words
+    assert_equal "data", Inflector.singularize("data")
+    assert_equal "fish", Inflector.singularize("fish")
+  end
+
+  def test_singularize_handles_ses_suffix
+    # `boses` matches the `-ses` rule.
+    assert_equal "bos", Inflector.singularize("boses")
+  end
+
+  def test_camelize_with_empty_segments
+    assert_equal "", Inflector.camelize("")
+    assert_equal "Foo", Inflector.camelize("foo")
+  end
+
+  def test_preserve_case_capital_propagates
+    # `People → Person` should still preserve the leading capital.
+    assert_equal "Person", Inflector.singularize("People")
+  end
+
+  def test_camelize_with_leading_underscore
+    # `_foo` → first segment is empty, should be skipped.
+    assert_equal "Foo", Inflector.camelize("_foo")
+  end
 end

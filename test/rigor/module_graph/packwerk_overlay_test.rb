@@ -89,6 +89,26 @@ class PackwerkOverlayTest < Minitest::Test
     end
   end
 
+  def test_package_for_nil_path
+    overlay = PackwerkOverlay.new(project_root: "/tmp", packages: [])
+    assert_nil overlay.package_for(nil)
+    assert_nil overlay.package_for("")
+  end
+
+  def test_realpath_of_with_nonexistent_path_walks_up_to_existing_ancestor
+    # Exercised indirectly via package_for. Ensure synthetic
+    # under-package paths resolve through the symlink-following
+    # walk-up logic.
+    Dir.mktmpdir do |tmp|
+      FileUtils.mkdir_p(File.join(tmp, "packages/billing"))
+      File.write(File.join(tmp, "packages/billing/package.yml"), "")
+      overlay = PackwerkOverlay.discover(tmp)
+      # File does not exist; the walk-up should find the package dir.
+      pkg = overlay.package_for(File.join(tmp, "packages/billing/missing/app/foo.rb"))
+      refute_nil pkg
+    end
+  end
+
   def test_discover_prunes_known_noise_directories
     Dir.mktmpdir do |tmp|
       # A bogus package.yml inside node_modules / .git / vendor

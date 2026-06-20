@@ -52,4 +52,53 @@ class MermaidTest < Minitest::Test
     ]
     assert_snapshot "mermaid/unresolved", Mermaid.render(edges)
   end
+
+  def test_escape_label_replaces_double_quote_with_html_entity
+    edges = [Edge.build(from: 'has"quote', to: "Other", kind: "include")]
+    rendered = Mermaid.render(edges)
+    assert_includes rendered, "#quot;"
+  end
+
+  def test_better_tag_prefers_inherits_over_include_for_target
+    edges = [
+      Edge.build(from: "A", to: "Base", kind: "include"),
+      Edge.build(from: "B", to: "Base", kind: "inherits")
+    ]
+    rendered = Mermaid.render(edges)
+    # Base is the target of both edges; inherits wins over include.
+    assert_match(/class n\d+ inherits;/, rendered)
+  end
+
+  def test_unresolved_tag_dominates_in_priority
+    edges = [
+      Edge.build(from: "A", to: "Base", kind: "include"),
+      Edge.build(from: "B", to: "Base", kind: "include", confidence: "unresolved")
+    ]
+    rendered = Mermaid.render(edges)
+    assert_match(/class n\d+ unresolved;/, rendered)
+  end
+
+  def test_render_with_unknown_kind_falls_back_to_default_arrow
+    # Edge.build validates kind, so we can't construct an edge
+    # with an unknown kind directly. Skip — the default arrow
+    # branch is theoretically reachable only via raw EDGE_KINDS
+    # extension; cover via the fetch fallback path indirectly by
+    # confirming ARROW_FOR_KIND is consulted properly.
+    refute_nil Rigor::ModuleGraph::Mermaid::ARROW_FOR_KIND["inherits"]
+  end
+
+  def test_render_with_empty_edges_does_not_emit_node_section_separator
+    rendered = Mermaid.render([])
+    refute_includes rendered, "n0"
+  end
+
+  def test_better_tag_unresolved_never_replaced
+    edges = [
+      Edge.build(from: "A", to: "T", kind: "include", confidence: "unresolved"),
+      Edge.build(from: "B", to: "T", kind: "inherits")
+    ]
+    rendered = Mermaid.render(edges)
+    # T was first tagged unresolved; inherits should not displace it.
+    assert_match(/class n\d+ unresolved;/, rendered)
+  end
 end

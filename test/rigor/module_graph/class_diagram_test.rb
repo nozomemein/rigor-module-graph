@@ -83,4 +83,15 @@ class ClassDiagramTest < Minitest::Test
     rendered = ClassDiagram.render([], nodes)
     assert_includes rendered, "«module»"
   end
+
+  def test_unknown_kind_falls_back_to_default_arrow
+    edges = [Edge.build(from: "Foo", to: "Bar", kind: "const_ref")]
+    rendered = ClassDiagram.render(edges, [])
+    assert_includes rendered, "<.."
+  end
+
+  def test_class_diagram_with_empty_input
+    rendered = ClassDiagram.render([], [])
+    assert_includes rendered, "classDiagram"
+  end
 end

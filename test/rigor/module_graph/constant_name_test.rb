@@ -70,6 +70,26 @@ class ConstantNameTest < Minitest::Test
     assert_nil ConstantName.lexical_owner(context)
   end
 
+  def test_lexical_owner_with_returns_nil_when_extra_empty_and_no_ancestors
+    context = FakeNodeContext.new([])
+    assert_nil ConstantName.lexical_owner_with(context, "")
+    assert_nil ConstantName.lexical_owner_with(context, nil)
+  end
+
+  def test_lexical_parts_ignores_non_class_module_ancestors
+    # DefNode etc. should be filtered out.
+    src = "def foo; class Inner; end; end"
+    ancestors_around_inner = nil
+    PrismAncestors.each_node(src) do |node, ancestors|
+      if node.is_a?(Prism::ClassNode) && node.name == :Inner
+        ancestors_around_inner = ancestors.dup
+      end
+    end
+    refute_nil ancestors_around_inner
+    parts = ConstantName.lexical_parts(ancestors_around_inner)
+    assert_empty parts
+  end
+
   def parse_const(source)
     Prism.parse(source).value.statements.body.first
   end

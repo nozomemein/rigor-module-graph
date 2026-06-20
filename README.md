@@ -300,6 +300,7 @@ bundle install
 bundle exec lefthook install      # wire pre-commit / pre-push hooks
 bundle exec rake test
 UPDATE_SNAPSHOTS=1 bundle exec rake test   # to refresh snapshots
+bundle exec rake coverage         # C2 (branch) coverage report under ./coverage
 ```
 
 ### Git hooks

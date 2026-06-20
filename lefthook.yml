@@ -24,10 +24,13 @@ pre-commit:
       run: betterleaks git --pre-commit --redact --staged --verbose
     rigor:
       tags: lint
-      glob: "*.rb"
+      glob: "lib/**/*.rb"
       # Rigor reads `.rigor.yml` from the project root and analyses
       # the paths we hand it. Staged files only keeps the check
       # fast (full-project scans run in CI / locally on demand).
+      # Tests / examples / build scripts intentionally fall through
+      # — they monkey-patch SimpleCov / lefthook DSLs that the
+      # analyzer can't trace statically.
       run: bundle exec rigor check {staged_files}
 
 pre-push:

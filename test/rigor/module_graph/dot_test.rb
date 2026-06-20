@@ -56,4 +56,17 @@ class DotTest < Minitest::Test
     ]
     assert_snapshot "dot/unresolved", Dot.render(edges)
   end
+
+  def test_quote_escapes_embedded_double_quote
+    edges = [Edge.build(from: 'has"quote', to: "B", kind: "include")]
+    rendered = Dot.render(edges)
+    assert_includes rendered, '\"'
+  end
+
+  def test_render_with_groups_overrides_collapse
+    edges = [Edge.build(from: "Foo", to: "Bar", kind: "include")]
+    groups = { "Foo" => "pkg/foo" }
+    rendered = Dot.render(edges, groups: groups)
+    assert_includes rendered, "cluster_pkg_foo"
+  end
 end

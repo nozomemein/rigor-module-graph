@@ -154,4 +154,28 @@ class ReachabilityTest < Minitest::Test
     # scopes match (edges returned unchanged).
     assert_equal edges, Reachability.filter(edges, roots: [], edge_scope: :walk)
   end
+
+  def test_walk_scope_with_unlimited_depth
+    edges = [edge("A", "B"), edge("B", "C"), edge("C", "D")]
+    walk = Reachability.filter(edges, roots: ["A"], direction: :out, edge_scope: :walk)
+    pairs = walk.map { |e| [e.from, e.to] }
+    assert_equal [%w[A B], %w[B C], %w[C D]], pairs
+  end
+
+  def test_walk_scope_in_direction
+    edges = [edge("A", "B"), edge("B", "C"), edge("X", "A")]
+    walk = Reachability.filter(edges, roots: ["A"], depth: 2, direction: :in, edge_scope: :walk)
+    pairs = walk.map { |e| [e.from, e.to] }
+    assert_includes pairs, %w[X A]
+  end
+
+  def test_walk_revisits_existing_neighbour_skips_addition
+    edges = [
+      edge("A", "B"),
+      edge("A", "B"), # duplicate target — should not be re-added
+      edge("B", "C")
+    ]
+    walk = Reachability.filter(edges, roots: ["A"], direction: :out, edge_scope: :walk)
+    refute_empty walk
+  end
 end

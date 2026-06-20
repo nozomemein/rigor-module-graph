@@ -2,6 +2,8 @@
 /vendor/bundle/
 /pkg/
 /doc/
+/coverage/
+/assets/
 /Gemfile.lock
 .rigor/
 *.gem

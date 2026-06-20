@@ -52,6 +52,13 @@ Style/FrozenStringLiteralComment:
 Naming/MemoizedInstanceVariableName:
   Enabled: false
 
+# Test method names like `test_dot_with_unknown_kind_exits_2`
+# describe behaviour, not "variable number". The cop's preferred
+# `_two` rename loses the link to the exit-code semantics.
+Naming/VariableNumber:
+  Exclude:
+    - "test/**/*"
+
 # Snapshot tests use a one-method-many-asserts style that the
 # default 25-LOC limit punishes without good reason.
 Metrics/MethodLength:
@@ -59,6 +66,8 @@ Metrics/MethodLength:
 
 Metrics/ClassLength:
   Max: 400
+  Exclude:
+    - "test/**/*"
 
 Metrics/ModuleLength:
   Max: 400

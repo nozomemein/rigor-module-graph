@@ -59,4 +59,23 @@ class CycleDetectorTest < Minitest::Test
     cycle = CycleDetector::Cycle.new(nodes: %w[A B C])
     assert_equal "A -> B -> C -> A", cycle.to_s
   end
+
+  def test_self_loop_collected
+    edges = [edge("A", "A")]
+    cycles = CycleDetector.detect(edges)
+    assert_equal 1, cycles.size
+    assert_equal ["A"], cycles.first.nodes
+  end
+
+  def test_walk_cycle_handles_complex_scc
+    # SCC of 4 nodes with cross edges; should produce smallest-first rotation.
+    edges = [
+      edge("D", "C"), edge("C", "B"), edge("B", "A"), edge("A", "D"),
+      edge("B", "D"), edge("C", "A")
+    ]
+    cycles = CycleDetector.detect(edges)
+    assert_equal 1, cycles.size
+    assert_equal "A", cycles.first.nodes.first
+    assert_equal 4, cycles.first.nodes.size
+  end
 end

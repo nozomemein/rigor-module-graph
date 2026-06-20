@@ -69,6 +69,30 @@ class EdgeTest < Minitest::Test
     assert_equal "C", read_back[1].to
   end
 
+  def test_to_h_with_raw_field
+    edge = Edge.build(from: "A", to: "B", kind: "include",
+                      raw: "some_local", confidence: "unresolved")
+    h = edge.to_h
+    assert_equal "some_local", h["raw"]
+  end
+
+  def test_to_json_returns_string
+    edge = Edge.build(from: "A", to: "B", kind: "include")
+    assert_includes edge.to_json, "\"from\":\"A\""
+  end
+
+  def test_message_payload_includes_raw_when_present
+    edge = Edge.build(from: "A", to: "B", kind: "include",
+                      raw: "x", confidence: "unresolved")
+    assert_equal "x", edge.to_message_payload["raw"]
+  end
+
+  def test_edgeio_read_defaults_missing_confidence_to_syntax
+    io = StringIO.new('{"from":"A","to":"B","kind":"include"}')
+    edges = EdgeIO.read(io)
+    assert_equal "syntax", edges.first.confidence
+  end
+
   def test_edgeio_skips_blank_lines
     io = StringIO.new(<<~JSONL)
       {"from":"A","to":"B","kind":"include","confidence":"syntax"}

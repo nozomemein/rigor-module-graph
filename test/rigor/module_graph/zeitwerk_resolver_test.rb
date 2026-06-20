@@ -87,4 +87,17 @@ class ZeitwerkResolverTest < Minitest::Test
     resolver = Resolver.new(autoload_paths: ["app/models/"])
     assert_equal "Invoice", resolver.resolve("app/models/invoice.rb")
   end
+
+  def test_resolves_returns_nil_when_relative_path_unresolvable
+    resolver = Resolver.new(project_root: "/tmp/proj")
+    # An absolute path outside project_root that doesn't include
+    # any known autoload root prefix.
+    assert_nil resolver.resolve("/elsewhere/foo.rb")
+  end
+
+  def test_matches_handles_nil_inputs
+    refute Resolver.new.matches?(nil, nil)
+    refute Resolver.new.matches?("Foo", nil)
+    refute Resolver.new.matches?(nil, "Foo")
+  end
 end
