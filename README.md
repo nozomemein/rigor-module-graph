@@ -17,13 +17,13 @@ via Cytoscape.js for actually exploring a 1000+-node Rails
 codebase. Both rendered from the same `edges.jsonl` —
 no second analysis pass.
 
-### Graphviz (`--output svg`)
-
-![billing graph via Graphviz](examples/billing/graph.svg)
-
 ### Cytoscape (`--output html`, the default)
 
 ![billing graph via Cytoscape](examples/billing/preview.png)
+
+### Graphviz (`--output svg`)
+
+![billing graph via Graphviz](examples/billing/graph.svg)
 
 Both screenshots are from `examples/billing/`. Open
 `examples/billing/index.html` directly to try the
@@ -298,14 +298,18 @@ published to GitHub Pages on every push to `main`.
   pipeline (Prism → node rules → confidence ladder → JSONL →
   renderers), and why this is a nominal dependency graph and
   not a call graph.
+- [Security](docs/security.md) — supply-chain controls
+  (Bundler cooldown, vendored-JS sha256 + 4-source audit,
+  action SHA pinning, trusted publishing) and the layered
+  pre-commit / CI gates that enforce them.
+- [Known limitations](docs/limitation.md) — rough edges shipped
+  with the current release (visibility tracker gaps, the
+  bundled inflector, Mermaid 10.x quirks).
 - [Development guide](docs/development.md) — local setup, git
   hooks, CI / Release workflows, test suite layout.
 - [Design plan](docs/plan.md) — the decisions still
   load-bearing for the code (edge model, confidence ladder,
   output channel, owner resolution, architecture map).
-- [Known limitations](docs/limitation.md) — rough edges shipped
-  with the current release (visibility tracker gaps, the
-  bundled inflector, Mermaid 10.x quirks).
 - [Changelog](CHANGELOG.md) — per-version changes, formatted
   per [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
   with [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
