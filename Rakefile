@@ -36,7 +36,8 @@ end
 # output tree under the same relative path so the markdown links
 # keep working both on GitHub and on GitHub Pages.
 RDOC_ASSET_PATHS = [
-  "examples/billing/graph.svg"
+  "examples/billing/graph.svg",
+  "examples/billing/preview.png"
 ].freeze
 
 Rake::Task[:rdoc].enhance do

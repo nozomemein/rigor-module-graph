@@ -11,10 +11,25 @@ to Packwerk/Graphwerk: where those look at package boundaries, this
 looks at the Ruby nominal graph — inheritance, `include`/`prepend`/
 `extend`, and (later) constant references.
 
-![billing example](examples/billing/graph.svg)
+**Two ways to look at the same graph.** Static SVG via
+Graphviz for committing into PRs and docs; interactive HTML
+via Cytoscape.js for actually exploring a 1000+-node Rails
+codebase. Both rendered from the same `edges.jsonl` —
+no second analysis pass.
 
-The screenshot above is from `examples/billing/`. Open
-`examples/billing/index.html` for the live Mermaid version.
+### Graphviz (`--output svg`)
+
+![billing graph via Graphviz](examples/billing/graph.svg)
+
+### Cytoscape (`--output html`, the default)
+
+![billing graph via Cytoscape](examples/billing/preview.png)
+
+Both screenshots are from `examples/billing/`. Open
+`examples/billing/index.html` directly to try the
+interactive version — pan, zoom, filter by `kind` /
+`confidence`, search by name, click a node to copy
+`path:line`.
 
 ## Install
 
