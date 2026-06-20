@@ -84,23 +84,23 @@ jobs:
         # the maintainer's local hooks were skipped.
         run: bundle exec rake vendor:verify
 
-      - name: Install Graphviz
-        # `examples/billing/build.rb` shells out to `dot -Tsvg`
-        # for the graph.svg artefact, so the drift check below
-        # needs the binary on PATH. Pinned to whatever
-        # `apt-get` ships — Graphviz's `dot` SVG output is
-        # stable across recent versions modulo the generator
-        # comment, which `check_billing_drift.rb` already
-        # normalises away.
-        run: sudo apt-get update && sudo apt-get install -y graphviz
-
       - name: Check examples/billing/ artefacts are up to date
         # Regenerates the committed examples/billing/
-        # {index.html, graph.svg, class-diagram.html} via
-        # `build.rb` and fails if any drift from the committed
-        # copies. Catches the "edited build.rb / lib/ but
-        # forgot to refresh the example output" mistake before
-        # the PR lands.
+        # {index.html, class-diagram.html} via `build.rb` and
+        # fails if any drift from the committed copies.
+        # Catches the "edited build.rb / lib/ but forgot to
+        # refresh the example output" mistake before the PR
+        # lands.
+        #
+        # graph.svg is intentionally NOT in the drift set:
+        # Graphviz `dot` emits subtly different layout
+        # coordinates per major version, and the maintainer's
+        # locally-installed version differs from the runner's
+        # apt-shipped one. The committed graph.svg is a hero
+        # image refreshed locally and committed deliberately,
+        # not a CI-rebuildable artefact. `build.rb` itself
+        # skips the SVG step when `dot` isn't on PATH, so
+        # this CI step doesn't need graphviz installed.
         run: bundle exec ruby script/check_billing_drift.rb
 
   workflow-lint:
