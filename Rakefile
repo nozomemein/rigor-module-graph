@@ -23,7 +23,29 @@ RDoc::Task.new do |rdoc|
   # one navigable site that covers source, README, and design
   # docs together.
   rdoc.rdoc_files.include("README.md", "CHANGELOG.md", "docs/*.md", "lib/**/*.rb")
-  rdoc.options << "--markup" << "rdoc"
+  # README / CHANGELOG / docs/*.md use CommonMark, not RDoc's
+  # built-in syntax. Aligned with `.rdoc_options`'s `markup:
+  # markdown` so the README's `![alt](path)` image tags actually
+  # render in the generated site.
+  rdoc.options << "--markup" << "markdown"
+end
+
+# Image references in README.md (e.g. `examples/billing/graph.svg`)
+# don't get copied into `doc/` by RDoc's darkfish template, so the
+# generated site 404s on them. Mirror referenced assets into the
+# output tree under the same relative path so the markdown links
+# keep working both on GitHub and on GitHub Pages.
+RDOC_ASSET_PATHS = [
+  "examples/billing/graph.svg"
+].freeze
+
+Rake::Task[:rdoc].enhance do
+  require "fileutils"
+  RDOC_ASSET_PATHS.each do |src|
+    dest = File.join("doc", src)
+    FileUtils.mkdir_p(File.dirname(dest))
+    FileUtils.cp(src, dest)
+  end
 end
 
 namespace :rdoc do

@@ -17,6 +17,15 @@ Categories:
 
 ## [Unreleased]
 
+### Fixed
+
+- RDoc generation now parses Markdown instead of RDoc syntax,
+  so `![alt](path)` images in `README.md` / `CHANGELOG.md` /
+  `docs/*.md` actually render. `Rake::Task[:rdoc]` is enhanced
+  to copy `examples/billing/graph.svg` (and any future
+  `RDOC_ASSET_PATHS` entries) into `doc/` so the generated site
+  resolves the relative image references the README uses.
+
 ## [0.1.1] — 2026-06-20
 
 First Action-driven publish. The 0.1.0 release happened via the

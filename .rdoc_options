@@ -1,6 +1,6 @@
 ---
 encoding: UTF-8
-markup: rdoc
+markup: markdown
 main_page: README.md
 title: rigor-module-graph
 template: darkfish
