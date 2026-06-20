@@ -456,7 +456,19 @@ class CLITest < Minitest::Test
     view = fresh_view(format: "html")
     payload, binary = view.send(:render_payload, edges_array, nodes_array, [], nil)
     refute binary
+    # Viewer::Html — Cytoscape-based interactive viewer
+    assert_includes payload, "<!DOCTYPE html>"
+    assert_includes payload, 'id="cy"'
+    assert_includes payload, "cytoscape"
+  end
+
+  def test_view_render_payload_dispatch_mermaid_html
+    view = fresh_view(format: "mermaid-html")
+    payload, binary = view.send(:render_payload, edges_array, nodes_array, [], nil)
+    refute binary
+    # legacy static-Mermaid embed kept for back-compat
     assert_includes payload, "<!doctype html>"
+    assert_includes payload, "mermaid"
   end
 
   def test_view_render_payload_dispatch_mermaid
@@ -842,7 +854,11 @@ class CLITest < Minitest::Test
   def test_view_render_payload_html_branch_when_collapse_nonempty
     view = fresh_view(format: "html")
     payload, = view.send(:render_payload, edges_array, nodes_array, ["Billing"], nil)
-    assert_includes payload, "<!doctype html>"
+    # Cytoscape viewer ignores `collapse` (Cytoscape has its
+    # own compound-node mechanism), but the page still
+    # renders without error — that's the assertion.
+    assert_includes payload, "<!DOCTYPE html>"
+    assert_includes payload, 'id="cy"'
   end
 
   def test_view_render_payload_with_groups_overrides_collapse

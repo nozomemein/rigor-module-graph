@@ -18,6 +18,7 @@ require_relative "packwerk_overlay"
 require_relative "html_view"
 require_relative "status_reporter"
 require_relative "uml/class_diagram"
+require_relative "viewer/html"
 
 module Rigor
   module ModuleGraph
@@ -365,9 +366,23 @@ module Rigor
         SUBTITLE_COLLAPSE_PREVIEW = 6
 
         # The supported output formats, in roughly increasing
-        # "wrapping" order: html embeds mermaid; svg embeds dot;
+        # "wrapping" order. `html` is the interactive Cytoscape
+        # viewer (vendored, self-contained); `mermaid-html` is
+        # the older static-Mermaid-via-CDN page kept for
+        # backwards compatibility; `svg` embeds the dot layout;
         # the rest are raw text.
-        FORMATS = %w[html mermaid dot svg class-diagram].freeze
+        FORMATS = %w[html mermaid-html mermaid dot svg class-diagram].freeze
+
+        # `--path-mode` controls how the click-through metadata
+        # `data.path` is reported on every node. See
+        # `Viewer::Html#path_for` for what each mode emits.
+        PATH_MODES = %i[relative absolute none].freeze
+
+        # `--open-with` flips the node-click action from
+        # clipboard copy to opening the file in an editor via
+        # a custom URL scheme. `vscode` is the only supported
+        # editor today.
+        OPEN_WITH = %i[vscode].freeze
 
         # Default file destination when format is html and the
         # user didn't override with -o. Non-html formats default to
@@ -394,7 +409,9 @@ module Rigor
             package: nil,
             include_methods: true,
             include_attributes: true,
-            visibilities: %w[public protected private]
+            visibilities: %w[public protected private],
+            path_mode: :relative,
+            open_with: nil
           }
         end
 
@@ -461,6 +478,16 @@ module Rigor
         def render_payload(edges, nodes, collapse, groups)
           case @options[:format]
           when "html"
+            html = Viewer::Html.render(
+              edges: edges,
+              nodes: restrict_nodes_to_edges(nodes, edges),
+              title: "rigor-module-graph: #{File.basename(Dir.pwd)}",
+              subtitle: render_subtitle(edges, collapse, groups),
+              path_mode: @options[:path_mode],
+              open_with: @options[:open_with]
+            )
+            [html, false]
+          when "mermaid-html"
             mermaid = Mermaid.render(edges, collapse: collapse, groups: groups)
             html = HtmlView.render(
               title: "rigor-module-graph: #{File.basename(Dir.pwd)}",
@@ -554,7 +581,7 @@ module Rigor
         end
 
         def html?
-          @options[:format] == "html"
+          %w[html mermaid-html].include?(@options[:format])
         end
 
         def build_parser
@@ -616,11 +643,28 @@ module Rigor
             opts.on("-q", "--quiet", "Suppress step-level progress on stderr") do
               @options[:quiet] = true
             end
+            add_viewer_options(opts)
             add_filter_options(opts, @options)
             opts.on("-h", "--help") do
               @stdout.puts opts
               exit 0
             end
+          end
+        end
+
+        def add_viewer_options(opts)
+          opts.on("--path-mode MODE", PATH_MODES,
+                  "How to report node paths in the html viewer: " \
+                  "#{PATH_MODES.join(" / ")} (default: relative). " \
+                  "`none` strips path metadata entirely — useful when " \
+                  "sharing the html artefact outside the project.") do |mode|
+            @options[:path_mode] = mode
+          end
+          opts.on("--open-with EDITOR", OPEN_WITH,
+                  "Make node clicks open the file in EDITOR instead of " \
+                  "copying path:line to the clipboard. " \
+                  "Supported: #{OPEN_WITH.join(" / ")}.") do |editor|
+            @options[:open_with] = editor
           end
         end
 
