@@ -87,4 +87,7 @@ jobs:
           persist-credentials: false
 
       - name: Run zizmor
-        uses: zizmorcore/zizmor-action@v0
+        # zizmor-action publishes only full semver tags (no
+        # rolling `v0` major). Bump deliberately when a new minor
+        # ships — Dependabot can drive that.
+        uses: zizmorcore/zizmor-action@v0.5.6
