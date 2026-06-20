@@ -17,13 +17,13 @@ via Cytoscape.js for actually exploring a 1000+-node Rails
 codebase. Both rendered from the same `edges.jsonl` —
 no second analysis pass.
 
-### Graphviz (`--output svg`)
-
-![billing graph via Graphviz](examples/billing/graph.svg)
-
 ### Cytoscape (`--output html`, the default)
 
 ![billing graph via Cytoscape](examples/billing/preview.png)
+
+### Graphviz (`--output svg`)
+
+![billing graph via Graphviz](examples/billing/graph.svg)
 
 Both screenshots are from `examples/billing/`. Open
 `examples/billing/index.html` directly to try the
